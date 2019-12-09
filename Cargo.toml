@@ -1,0 +1,8 @@
+[package]
+name = "ffix"
+version = "0.1.0"
+authors = ["Ross Nomann <rossnomann@protonmail.com>"]
+edition = "2018"
+
+[dependencies]
+libc = "0.2"
