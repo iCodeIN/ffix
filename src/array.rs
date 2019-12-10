@@ -29,7 +29,7 @@ impl<T> ArrayReader<T> {
     /// * index - Index of an item
     pub fn get(&self, index: usize) -> Option<*mut T> {
         assert!(!self.ptr.is_null());
-        let ptr = unsafe { *self.ptr.offset(index as isize) };
+        let ptr = unsafe { *self.ptr.add(index) };
         if ptr.is_null() {
             None
         } else {
