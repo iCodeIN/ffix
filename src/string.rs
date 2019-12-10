@@ -113,6 +113,12 @@ impl StringArray {
 
     /// Constructs a string array from raw pointer
     ///
+    /// # Safety
+    ///
+    /// Improper use may lead to memory problems.
+    /// For example, a double-free may occur
+    /// if the function is called twice on the same raw pointer.
+    ///
     /// # Arguments
     ///
     /// * ptr - A pointer to C string array

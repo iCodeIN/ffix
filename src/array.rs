@@ -6,6 +6,13 @@ pub struct ArrayReader<T> {
 impl<T> ArrayReader<T> {
     /// Create a new array from raw pointer
     ///
+    /// # Safety
+    ///
+    /// This function is unsafe as there is no guarantee
+    /// that the given array pointer ends with NULL.
+    ///
+    /// See also https://doc.rust-lang.org/stable/std/primitive.pointer.html?search=#method.add
+    ///
     /// # Panics
     ///
     /// Panics if pointer is NULL
@@ -105,7 +112,7 @@ mod tests {
                     assert!(!ptr.is_null());
                     let ptr = ptr.cast::<Item>();
                     (*ptr).value = i;
-                    *array_ptr.offset(i as isize) = ptr;
+                    *array_ptr.add(i) = ptr;
                 };
             }
             Self { ptr: array_ptr }
