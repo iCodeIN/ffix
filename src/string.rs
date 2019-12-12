@@ -1,8 +1,9 @@
 use crate::{Error, Result};
-use libc::{c_char, c_void, free, malloc, memcpy, memset};
+use libc::{c_char, c_void, free, malloc, memset};
 use std::{
     ffi::{CStr, CString},
     mem,
+    ptr::NonNull,
 };
 
 /// A helper to read C string
@@ -50,7 +51,7 @@ impl StringReader {
 
 /// A wrapper for null-terminated C string array
 pub struct StringArray {
-    ptr: *mut *const c_char,
+    ptr: NonNull<*const c_char>,
     should_drop: bool,
     has_dropped: bool,
 }
@@ -81,20 +82,13 @@ impl StringArray {
         for (item_idx, item_data) in items.iter().enumerate() {
             let item_idx = item_idx as isize;
             let item_data = item_data.as_ref().as_bytes();
-            let item_size = item_data.len();
-            let ptr_src = item_data.as_ptr().cast::<c_void>();
             unsafe {
-                let ptr_size = item_size + 1;
-                let ptr_dest = malloc(ptr_size);
-                assert!(!ptr_dest.is_null());
-                memset(ptr_dest, 0, ptr_size);
-                memcpy(ptr_dest, ptr_src, item_size);
                 let item_ptr = array_ptr.offset(item_idx);
-                *item_ptr = ptr_dest.cast::<i8>();
+                *item_ptr = expose_string(item_data)?;
             }
         }
         Ok(Self {
-            ptr: array_ptr,
+            ptr: unsafe { NonNull::new_unchecked(array_ptr) },
             should_drop: true,
             has_dropped: false,
         })
@@ -108,7 +102,7 @@ impl StringArray {
     /// or make sure that C code deallocates a returned data.
     pub fn into_raw(mut self) -> *mut *const c_char {
         self.should_drop = false;
-        self.ptr
+        self.ptr.as_ptr()
     }
 
     /// Constructs a string array from raw pointer
@@ -119,13 +113,17 @@ impl StringArray {
     /// For example, a double-free may occur
     /// if the function is called twice on the same raw pointer.
     ///
+    /// # Panics
+    ///
+    /// Pointer must be not NULL
+    ///
     /// # Arguments
     ///
     /// * ptr - A pointer to C string array
     /// * should_drop - Should data be deallocated when `drop()` is called
     pub unsafe fn from_raw(ptr: *mut *const c_char, should_drop: bool) -> Self {
         Self {
-            ptr,
+            ptr: NonNull::new(ptr).expect("Pointer must be not NULL"),
             should_drop,
             has_dropped: false,
         }
@@ -133,7 +131,7 @@ impl StringArray {
 
     fn free(&mut self) {
         if self.should_drop && !self.has_dropped {
-            unsafe { free(self.ptr.cast()) }
+            unsafe { free(self.ptr.as_ptr().cast()) }
             self.has_dropped = true;
         }
     }
@@ -173,10 +171,7 @@ impl Iterator for StringArrayIter {
     type Item = Result<String>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.array.ptr.is_null() {
-            return None;
-        }
-        let item_ptr = unsafe { *self.array.ptr.offset(self.current_index) };
+        let item_ptr = unsafe { *self.array.ptr.as_ptr().offset(self.current_index) };
         if item_ptr.is_null() {
             None
         } else {
@@ -213,6 +208,7 @@ pub fn expose_string<T: Into<Vec<u8>>>(input: T) -> Result<*const c_char> {
 mod tests {
     use super::*;
     use libc::strcpy;
+    use std::ptr::null_mut;
 
     #[test]
     fn test_read_and_write_string() {
@@ -245,5 +241,11 @@ mod tests {
         let mut array = unsafe { StringArray::from_raw(ptr, true) };
         array.free();
         assert!(array.has_dropped);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_string_array_from_raw_null() {
+        let _ = unsafe { StringArray::from_raw(null_mut(), true) };
     }
 }

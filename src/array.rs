@@ -1,6 +1,8 @@
+use std::ptr::NonNull;
+
 /// Null-terminated C array reader
 pub struct ArrayReader<T> {
-    ptr: *mut *mut T,
+    ptr: NonNull<*mut T>,
 }
 
 impl<T> ArrayReader<T> {
@@ -8,10 +10,10 @@ impl<T> ArrayReader<T> {
     ///
     /// # Safety
     ///
-    /// This function is unsafe as there is no guarantee
-    /// that the given array pointer ends with NULL.
+    /// * Array must be always non-null
+    /// * Array must be terminated with NULL
     ///
-    /// See also https://doc.rust-lang.org/stable/std/primitive.pointer.html?search=#method.add
+    /// See also [ptr::add](https://doc.rust-lang.org/stable/std/primitive.pointer.html?search=#method.add)
     ///
     /// # Panics
     ///
@@ -21,8 +23,9 @@ impl<T> ArrayReader<T> {
     ///
     /// * ptr - Pointer to array
     pub unsafe fn new(ptr: *mut *mut T) -> Self {
-        assert!(!ptr.is_null());
-        Self { ptr }
+        Self {
+            ptr: NonNull::new(ptr).expect("Pointer must be not null"),
+        }
     }
 
     /// Get an item from array by index
@@ -35,8 +38,7 @@ impl<T> ArrayReader<T> {
     ///
     /// * index - Index of an item
     pub fn get(&self, index: usize) -> Option<*mut T> {
-        assert!(!self.ptr.is_null());
-        let ptr = unsafe { *self.ptr.add(index) };
+        let ptr = unsafe { *self.ptr.as_ptr().add(index) };
         if ptr.is_null() {
             None
         } else {
@@ -73,9 +75,6 @@ impl<T> Iterator for ArrayIter<T> {
     type Item = *mut T;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.reader.ptr.is_null() {
-            return None;
-        }
         let item = self.reader.get(self.current_index);
         self.current_index += 1;
         item
