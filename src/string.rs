@@ -30,7 +30,7 @@ impl StringReader {
 
     /// Get a result string
     pub fn into_string(self) -> Result<String> {
-        self.into_string_opt()?.ok_or_else(|| Error::Null)
+        self.into_string_opt()?.ok_or(Error::Null)
     }
 
     /// Get a result string or None if pointer is NULL
