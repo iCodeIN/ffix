@@ -11,9 +11,6 @@ impl<T> ArrayReader<T> {
     /// # Safety
     ///
     /// * Array must be always non-null
-    /// * Array must be terminated with NULL
-    ///
-    /// See also [ptr::add](https://doc.rust-lang.org/stable/std/primitive.pointer.html?search=#method.add)
     ///
     /// # Panics
     ///
@@ -30,6 +27,12 @@ impl<T> ArrayReader<T> {
 
     /// Get an item from array by index
     ///
+    /// # Safety
+    ///
+    /// * Array must be always non-null
+    /// * Array must be terminated with NULL
+    /// See also [ptr::add](https://doc.rust-lang.org/stable/std/primitive.pointer.html#method.add-1)
+    ///
     /// # Panics
     ///
     /// Panics if array pointer is NULL
@@ -37,21 +40,21 @@ impl<T> ArrayReader<T> {
     /// # Arguments
     ///
     /// * index - Index of an item
-    pub fn get(&self, index: usize) -> Option<*mut T> {
-        let ptr = unsafe { *self.ptr.as_ptr().add(index) };
+    pub unsafe fn get(&self, index: usize) -> Option<*mut T> {
+        let ptr = *self.ptr.as_ptr().add(index);
         if ptr.is_null() {
             None
         } else {
             Some(ptr)
         }
     }
-}
 
-impl<T> IntoIterator for ArrayReader<T> {
-    type Item = *mut T;
-    type IntoIter = ArrayIter<T>;
-
-    fn into_iter(self) -> Self::IntoIter {
+    /// Converts the reader into iterator
+    ///
+    /// # Safety
+    ///
+    /// See `get` method
+    pub unsafe fn into_iter(self) -> ArrayIter<T> {
         ArrayIter::new(self)
     }
 }
@@ -75,7 +78,7 @@ impl<T> Iterator for ArrayIter<T> {
     type Item = *mut T;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let item = self.reader.get(self.current_index);
+        let item = unsafe { self.reader.get(self.current_index) };
         self.current_index += 1;
         item
     }
@@ -130,11 +133,11 @@ mod tests {
         let array = Array::new(length);
         let reader = unsafe { ArrayReader::new(array.ptr) };
         for i in 0..length {
-            let item = reader.get(i).unwrap();
+            let item = unsafe { reader.get(i).unwrap() };
             assert_eq!(unsafe { (*item).value }, i)
         }
-        assert!(reader.get(length * 10).is_none());
-        let values: Vec<usize> = reader.into_iter().map(|x| unsafe { (*x).value }).collect();
+        assert!(unsafe { reader.get(length * 10).is_none() });
+        let values: Vec<usize> = unsafe { reader.into_iter().map(|x| (*x).value).collect() };
         assert_eq!(values, vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
     }
 
